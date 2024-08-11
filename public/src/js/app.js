@@ -1,4 +1,4 @@
-let deferredPrompt;
+var deferredPrompt;
 
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("/sw.js").then(function () {
@@ -6,7 +6,7 @@ if ("serviceWorker" in navigator) {
   });
 }
 
-self.addEventListener("beforeinstallPrompt", function (event) {
+window.addEventListener("beforeinstallprompt", function (event) {
   console.log("before prompt");
   event.preventDefault();
   deferredPrompt = event;
