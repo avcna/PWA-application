@@ -13,6 +13,9 @@ if ("serviceWorker" in navigator) {
       console.log(err.message);
     });
 }
+else {
+  console.log("no sw")
+}
 
 window.addEventListener("beforeinstallprompt", function (event) {
   console.log("before prompt");
@@ -20,9 +23,3 @@ window.addEventListener("beforeinstallprompt", function (event) {
   deferredPrompt = event;
   return false;
 });
-
-fetch("https://httpbin.org/ip").then((callback) =>
-  callback.json().then(function (response) {
-    console.log(response);
-  })
-);
