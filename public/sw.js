@@ -17,6 +17,19 @@ var STATIC_FILES = [
   'https://cdnjs.cloudflare.com/ajax/libs/material-design-lite/1.3.0/material.indigo-pink.min.css'
 ];
 
+// function trimCache(cacheName, maxItems) {
+//   caches.open(cacheName).then(function(cache){
+//     cache.keys().then(function(keys){
+//       if (keys.length > maxItems){
+//         cache.delete(keys[0]).then(function(){
+//           trimCache(cacheName, maxItems); 
+//         });
+//       }
+//     });
+//   });
+// }
+
+
 self.addEventListener("install", function (event) {
   console.log("Installing SW", event);
   event.waitUntil(caches.open(CACHES_STATIC).then(function (cache) {
@@ -55,6 +68,7 @@ self.addEventListener("fetch", function (event) {
     event.respondWith(
    caches.open(CACHES_DYNAMIC).then(function (cache){
     return fetch(event.request).then(function(res){
+      //trimCache(CACHES_DYNAMIC, 3);
       cache.put(event.request, res.clone());
       return res;
     })
@@ -78,6 +92,7 @@ self.addEventListener("fetch", function (event) {
           function(res){
             return caches.open(CACHES_DYNAMIC)
             .then(function(cache){
+              //trimCache(CACHES_DYNAMIC, 3);
               cache.put(event.request.url, res.clone())
               return res;
             })
