@@ -1,20 +1,24 @@
-var CACHES_STATIC = 'static-v10';
-var CACHES_DYNAMIC = 'dynamic-v3';
+importScripts("/src/js/idb.js");
+importScripts("/src/js/utility.js");
+
+var CACHES_STATIC = "static-v10";
+var CACHES_DYNAMIC = "dynamic-v3";
 var STATIC_FILES = [
-  '/',
-  '/index.html',
-  '/offline.html',
-  '/src/js/app.js',
-  '/src/js/feed.js',
-  '/src/js/promise.js',
-  '/src/js/fetch.js',
-  '/src/js/material.min.js',
-  '/src/css/app.css',
-  '/src/css/feed.css',
-  '/src/images/main-image.jpg',
-  'https://fonts.googleapis.com/css?family=Roboto:400,700',
-  'https://fonts.googleapis.com/icon?family=Material+Icons',
-  'https://cdnjs.cloudflare.com/ajax/libs/material-design-lite/1.3.0/material.indigo-pink.min.css'
+  "/",
+  "/index.html",
+  "/offline.html",
+  "/src/js/app.js",
+  "/src/js/feed.js",
+  "/src/js/idb.js",
+  "/src/js/promise.js",
+  "/src/js/fetch.js",
+  "/src/js/material.min.js",
+  "/src/css/app.css",
+  "/src/css/feed.css",
+  "/src/images/main-image.jpg",
+  "https://fonts.googleapis.com/css?family=Roboto:400,700",
+  "https://fonts.googleapis.com/icon?family=Material+Icons",
+  "https://cdnjs.cloudflare.com/ajax/libs/material-design-lite/1.3.0/material.indigo-pink.min.css",
 ];
 
 // function trimCache(cacheName, maxItems) {
@@ -22,38 +26,44 @@ var STATIC_FILES = [
 //     cache.keys().then(function(keys){
 //       if (keys.length > maxItems){
 //         cache.delete(keys[0]).then(function(){
-//           trimCache(cacheName, maxItems); 
+//           trimCache(cacheName, maxItems);
 //         });
 //       }
 //     });
 //   });
 // }
 
-
 self.addEventListener("install", function (event) {
   console.log("Installing SW", event);
-  event.waitUntil(caches.open(CACHES_STATIC).then(function (cache) {
-    console.log("sw precache");
-    cache.addAll(STATIC_FILES);
-  }));
+  event.waitUntil(
+    caches.open(CACHES_STATIC).then(function (cache) {
+      console.log("sw precache");
+      cache.addAll(STATIC_FILES);
+    })
+  );
 });
 
 self.addEventListener("activate", function (event) {
-  event.waitUntil(caches.keys().then(function (keyList) {
-    return Promise.all(keyList.map(function(key){
-      if (key !== CACHES_STATIC && key !== CACHES_DYNAMIC){
-        console.log("Deleting old cache...", key)
-        return caches.delete(key);
-      }
-    }))
-  }))
+  event.waitUntil(
+    caches.keys().then(function (keyList) {
+      return Promise.all(
+        keyList.map(function (key) {
+          if (key !== CACHES_STATIC && key !== CACHES_DYNAMIC) {
+            console.log("Deleting old cache...", key);
+            return caches.delete(key);
+          }
+        })
+      );
+    })
+  );
   return self.clients.claim();
 });
 
 function isInArray(string, array) {
   var cachePath;
-  if (string.indexOf(self.origin) === 0) { // request targets domain where we serve the page from (i.e. NOT a CDN)
-    console.log('matched ', string);
+  if (string.indexOf(self.origin) === 0) {
+    // request targets domain where we serve the page from (i.e. NOT a CDN)
+    console.log("matched ", string);
     cachePath = string.substring(self.origin.length); // take the part of the URL AFTER the domain (e.g. after localhost:8080)
   } else {
     cachePath = string; // store the full request (for CDNs)
@@ -62,54 +72,58 @@ function isInArray(string, array) {
 }
 
 self.addEventListener("fetch", function (event) {
-  var url = 'https://httpbin.org/get';
+  var url = "https://pwagram-ad7b5-default-rtdb.firebaseio.com/post";
 
-  if(event.request.url.indexOf(url) > -1){
+  if (event.request.url.indexOf(url) > -1) {
     event.respondWith(
-   caches.open(CACHES_DYNAMIC).then(function (cache){
-    return fetch(event.request).then(function(res){
-      //trimCache(CACHES_DYNAMIC, 3);
-      cache.put(event.request, res.clone());
-      return res;
-    })
-   })
-  );
-  }
-  else if(isInArray(event.request.url, STATIC_FILES)){
-    event.respondWith(
-      caches.match(event.request)
-    )
-  }
-  else{
-    event.respondWith(
-    caches.match(event.request).then(function (response) {
-      if (response){
-        return response;
-      }
-      else{
-        return fetch(event.request).
-        then(
-          function(res){
-            return caches.open(CACHES_DYNAMIC)
-            .then(function(cache){
-              //trimCache(CACHES_DYNAMIC, 3);
-              cache.put(event.request.url, res.clone())
-              return res;
-            })
-          }
-        )
-        .catch (function(error){
-          return caches.open(CACHES_STATIC).then(function(cache){
-            if(event.request.headers.get('accept').includes('text/html')){
-              return cache.match('/offline.html');
+      fetch(event.request).then(function (res) {
+        //trimCache(CACHES_DYNAMIC, 3);
+        //cache.put(event.request, res.clone());
+        var clonedRes = res.clone();
+        clearAllData("posts")
+          .then(function () {
+            return clonedRes.json();
+          })
+          .then(function (data) {
+            console.log("tes: " + data);
+            for (var key in data) {
+              writeData("posts", data[key])
+              // .then(function(){
+              //   deleteItemFromData("posts", key)
+              // });
             }
-            
           });
-        })
-      }
-    }))
+
+        return res;
+      })
+    );
+  } else if (isInArray(event.request.url, STATIC_FILES)) {
+    event.respondWith(caches.match(event.request));
+  } else {
+    event.respondWith(
+      caches.match(event.request).then(function (response) {
+        if (response) {
+          return response;
+        } else {
+          return fetch(event.request)
+            .then(function (res) {
+              return caches.open(CACHES_DYNAMIC).then(function (cache) {
+                //trimCache(CACHES_DYNAMIC, 3);
+                cache.put(event.request.url, res.clone());
+                return res;
+              });
+            })
+            .catch(function (error) {
+              return caches.open(CACHES_STATIC).then(function (cache) {
+                if (event.request.headers.get("accept").includes("text/html")) {
+                  return cache.match("/offline.html");
+                }
+              });
+            });
+        }
+      })
+    );
   }
-  
 });
 
 // cache then network
@@ -140,8 +154,6 @@ self.addEventListener("fetch", function (event) {
 //   );
 // });
 
-
-
 // network then cache
 // self.addEventListener("fetch", function (event) {
 //   event.respondWith(
@@ -159,7 +171,6 @@ self.addEventListener("fetch", function (event) {
 //   );
 // });
 
-
 // cache only
 // self.addEventListener("fetch", function (event) {
 //   event.respondWith(
@@ -167,7 +178,6 @@ self.addEventListener("fetch", function (event) {
 //     })
 //   );
 // });
-
 
 // Network only
 // self.addEventListener("fetch", function (event) {

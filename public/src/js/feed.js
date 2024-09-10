@@ -10,7 +10,11 @@ var closeCreatePostModalButton = document.querySelector(
 );
 
 function openCreatePostModal() {
-  createPostArea.style.display = "block";
+  // createPostArea.style.display = "block";
+  // setTimeout(function () {
+    createPostArea.style.transform = "translateY(0)";
+  // }, 1);
+
   if (deferredPrompt) {
     deferredPrompt.prompt();
 
@@ -66,18 +70,18 @@ function createCard(data) {
   cardWrapper.className = "shared-moment-card mdl-card mdl-shadow--2dp";
   var cardTitle = document.createElement("div");
   cardTitle.className = "mdl-card__title";
-  cardTitle.style.backgroundImage = `url(${data.fields.image.stringValue})`;
+  cardTitle.style.backgroundImage = `url(${data.image})`;
   cardTitle.style.backgroundSize = "cover";
   cardTitle.style.height = "180px";
   cardWrapper.appendChild(cardTitle);
   var cardTitleTextElement = document.createElement("h2");
   cardTitleTextElement.style.color = "white";
   cardTitleTextElement.className = "mdl-card__title-text";
-  cardTitleTextElement.textContent = data.fields.title.stringValue;
+  cardTitleTextElement.textContent = data.title;
   cardTitle.appendChild(cardTitleTextElement);
   var cardSupportingText = document.createElement("div");
   cardSupportingText.className = "mdl-card__supporting-text";
-  cardSupportingText.textContent = data.fields.location.stringValue;
+  cardSupportingText.textContent = data.location;
   cardSupportingText.style.textAlign = "center";
   // var cardSaveBtn = document.createElement('button');
   // cardSaveBtn.textContent = 'Save';
@@ -88,8 +92,7 @@ function createCard(data) {
   sharedMomentsArea.appendChild(cardWrapper);
 }
 
-var url =
-  "https://firestore.googleapis.com/v1/projects/pwagram-ad7b5/databases/(default)/documents/post";
+var url = "https://pwagram-ad7b5-default-rtdb.firebaseio.com/post.json";
 var networkDataReceived = false;
 
 fetch(url)
@@ -99,33 +102,23 @@ fetch(url)
   .then(function (data) {
     networkDataReceived = true;
     var dataArray = [];
-    for (var key in data.documents) {
-      dataArray.push(data.documents[key]);
+    for (var key in data) {
+      dataArray.push(data[key]);
     }
-    console.log("from web", dataArray);
+    console.log("from web", data);
     updateUI(dataArray);
   });
 
-if ("caches" in window) {
-  caches
-    .match(url)
-    .then(function (response) {
-      if (response) {
-        return response.json();
-      }
-    })
-    .then(function (data) {
-      if (!networkDataReceived) {
-        console.log("From cache", data);
-        var dataArray = [];
-        for (var key in data) {
-          dataArray.push(data[key]);
-        }
-        updateUI(dataArray);
-      }
-    });
+if ("indexedDB" in window) {
+  readAllData("posts").then(function (data) {
+    if (!networkDataReceived) {
+      console.log("from cache: " + data);
+      updateUI(data);
+    }
+  });
 }
 
 function closeCreatePostModal() {
-  createPostArea.style.display = "none";
+  //createPostArea.style.display = "none";
+  createPostArea.style.transform = "translateY(100vh)";
 }
