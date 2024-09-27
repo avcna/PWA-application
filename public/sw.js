@@ -1,14 +1,15 @@
 importScripts("/src/js/idb.js");
 importScripts("/src/js/utility.js");
 
-var CACHES_STATIC = "static-v10";
-var CACHES_DYNAMIC = "dynamic-v3";
+var CACHES_STATIC = "static-v11";
+var CACHES_DYNAMIC = "dynamic-v4";
 var STATIC_FILES = [
   "/",
   "/index.html",
   "/offline.html",
   "/src/js/app.js",
   "/src/js/feed.js",
+  "/src/js/utility.js",
   "/src/js/idb.js",
   "/src/js/promise.js",
   "/src/js/fetch.js",
@@ -87,7 +88,7 @@ self.addEventListener("fetch", function (event) {
           .then(function (data) {
             console.log("tes: " + data);
             for (var key in data) {
-              writeData("posts", data[key])
+              writeData("posts", data[key]);
               // .then(function(){
               //   deleteItemFromData("posts", key)
               // });
@@ -188,38 +189,97 @@ self.addEventListener("fetch", function (event) {
 
 self.addEventListener("sync", function (event) {
   console.log("background syncing...", event);
-  if (event.tag === "sync-new-post"){
+  if (event.tag === "sync-new-post") {
     console.log("syncing new post");
     event.waitUntil(
-      readAllData("sync-posts").then(
-        function(data){
-          for (var dt of data){
-            fetch('https://pwagram-ad7b5-default-rtdb.firebaseio.com/post.json',{
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-              },
-              body: JSON.stringify({
-                id:dt.id,
-                title: dt.title,
-                location: dt.location,
-                image:"https://firebasestorage.googleapis.com/v0/b/pwagram-ad7b5.appspot.com/o/sf-boat.jpg?alt=media&token=0452a7d5-1433-4251-bd35-3f1a66a10649"
-              }),
-            }).then(function(res){
-              console.log("data sent ", res)
-              if (res.ok){
-                console.log(dt)
-                deleteItemFromData("sync-posts", dt.id)
+      readAllData("sync-posts").then(function (data) {
+        //console.log(data)
+        for (var dt of data) {
+          var postData = new FormData();
+          postData.append("id", dt.id);
+          postData.append("title", dt.title);
+          postData.append('location', dt.location);
+          postData.append("rawLocationLat", dt.rawLocation.lat);
+          postData.append("rawLocationLng", dt.rawLocation.lng);
+          postData.append("file", dt.picture, dt.id+'.png');
+          fetch(
+            "http://127.0.0.1:5001/pwagram-ad7b5/us-central1/storePostData",
+            {
+              method: "POST",
+              body: postData,
+            }
+          )
+            .then(function (res) {
+              console.log("data sent ", res);
+              if (res.ok) {
+                console.log(dt);
+                res.json().then(function (resData) {
+                  deleteItemFromData("sync-posts", resData.id);
+                });
               }
-            }).catch(function(error){
-              console.log("error while sending data ", error)
             })
-          }
-          
+            .catch(function (error) {
+              console.log("error while sending data ", error);
+            });
         }
-      )
-      
+      })
     );
   }
-})
+});
+
+self.addEventListener("notificationclick", function (event) {
+  var notification = event.notification;
+  var action = event.action;
+
+  console.log(notification);
+
+  if (action === "confirm") {
+    console.log("Confirm was chosen");
+    notification.close();
+  } else {
+    console.log(action);
+    event.waitUntil(
+      clients.matchAll()
+      .then(function (clis) {
+        var client = clis.find(function(c){
+          return c.visiblityState === "visible";
+        });
+
+        if (client !== undefined){
+          client.navigate(notification.data.url)
+          client.focus();
+        } else {
+          clients.openWindow(notification.data.url);
+        }
+        notification.close();
+      })
+    );
+  }
+});
+
+self.addEventListener("notificationclose", function (event) {
+  console.log("Notification was closed: ", event);
+});
+
+
+self.addEventListener("push", function (event) {
+  console.log("push received: ", event);
+
+  var data = { title: "New", content: "Something happen", openUrl:"/" };
+
+  if (event.data) {
+    data = JSON.parse(event.data.text());
+  }
+
+  var option = {
+    body: data.content,
+    icon: "/src/images/icons/app-icon-96x96.png",
+    badge: "/src/images/icons/app-icon-96x96.png",
+    data: {
+      url: data.openUrl,
+    }
+  };
+  event.waitUntil(
+    self.registration.showNotification(data.title, option)
+  )
+});

@@ -3,6 +3,54 @@ var createPostArea = document.querySelector("#create-post");
 var form = document.querySelector("form");
 var titleInput = document.querySelector("#title");
 var locationInput = document.querySelector("#location");
+var videoPlayer = document.querySelector("#player");
+var canvasElement = document.querySelector("#canvas");
+var captureButton = document.querySelector("#capture-btn");
+var imagePicker = document.querySelector("#image-picker");
+var imagePickerArea = document.querySelector("#pick-image");
+var picture;
+var locationBtn = document.querySelector("#location-btn");
+var locationLoader = document.querySelector("#location-loader");
+var fetchedLocation= {lat: 0 ,lng: 0};
+
+locationBtn.addEventListener("click", function (event) {
+  if (!("geolocation" in navigator)) {
+    return;
+  }
+  var sawAlert = false;
+
+  locationBtn.style.display = "none";
+  locationLoader.style.display = "block";
+
+  navigator.geolocation.getCurrentPosition(
+    function (position) {
+      locationBtn.style.display = "inline";
+      locationLoader.style.display = "none";
+      fetchedLocation = { lat: position.coords.latitude, lng: 0 };
+      locationInput.value = "In Pontianak";
+      document.querySelector("#manual-location").classList.add("is-focused");
+    },
+    function (err) {
+      locationBtn.style.display = "inline";
+      locationLoader.style.display = "none";
+      if(!sawAlert){
+        alert("Couldnt fetch location. enter manually");
+        sawAlert = true;
+      }
+      fetchedLocation = { lat: 0, lng: 0 };
+      console.log(err);
+    },
+    {
+      timeout: 7000,
+    }
+  );
+});
+
+function initializeLocation() {
+  if (!("geolocation" in navigator)) {
+    locationBtn.style.display = "none";
+  }
+}
 
 var closeCreatePostModalButton = document.querySelector(
   "#close-create-post-modal-btn"
@@ -13,10 +61,64 @@ var closeCreatePostModalButton = document.querySelector(
   "#close-create-post-modal-btn"
 );
 
+function initializeMedia() {
+  if (!("mediaDevices" in navigator)) {
+    navigator.mediaDevices = {};
+  }
+  if (!("getUserMedia" in navigator.mediaDevices)) {
+    navigator.mediaDevices.getUserMedia = function (constraints) {
+      var getUserMedia =
+        navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
+      if (!getUserMedia) {
+        return Promise.reject(new Error("Get user media is not implemennted"));
+      }
+      return new Promise(function (resolve, reject) {
+        getUserMedia.call(navigator, constraints, resolve, reject);
+      });
+    };
+  }
+  navigator.mediaDevices
+    .getUserMedia({ video: true })
+    .then(function (stream) {
+      videoPlayer.srcObject = stream;
+      videoPlayer.style.display = "block";
+    })
+    .catch(function (err) {
+      imagePickerArea.style.display = "block";
+    });
+}
+
+captureButton.addEventListener("click", function () {
+  canvasElement.style.display = "block";
+  videoPlayer.style.display = "none";
+  captureButton.style.display = "none";
+  var context = canvasElement.getContext("2d");
+  context.drawImage(
+    videoPlayer,
+    0,
+    0,
+    canvas.width,
+    videoPlayer.videoHeight / (videoPlayer.videoWidth / canvas.width)
+  );
+  videoPlayer.srcObject.getVideoTracks().forEach(function (track) {
+    track.stop();
+  });
+  picture = dataURItoBlob(canvasElement.toDataURL());
+});
+
+imagePicker.addEventListener("change", function (event) {
+  picture = event.target.files[0];
+});
+
 function openCreatePostModal() {
   // createPostArea.style.display = "block";
   // setTimeout(function () {
-  createPostArea.style.transform = "translateY(0)";
+
+  setTimeout(function () {
+    createPostArea.style.transform = "translateY(0)";
+  }, 1);
+  initializeMedia();
+  initializeLocation();
   // }, 1);
 
   if (deferredPrompt) {
@@ -124,40 +226,40 @@ if ("indexedDB" in window) {
 
 function closeCreatePostModal() {
   //createPostArea.style.display = "none";
-  createPostArea.style.transform = "translateY(100vh)";
+  imagePickerArea.style.display = "none";
+  videoPlayer.style.display = "none";
+  canvasElement.style.display = "none";
+  locationBtn.style.display = "inline";
+  locationLoader.style.display = "none";
+  captureButton.style.display = "inline";
+
+  if (videoPlayer.srcObject) {
+    videoPlayer.srcObject.getVideoTracks().forEach(function (track) {
+      track.stop();
+    });
+  }
+
+  setTimeout(function () {
+    createPostArea.style.transform = "translateY(100vh)";
+  }, 1);
 }
 
 function sendData() {
-  fetch('https://pwagram-ad7b5-default-rtdb.firebaseio.com/post.json',{
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json'
-    },
-    body: JSON.stringify({
-      id:new Date().toISOString(),
-      title: titleInput.value,
-      location: locationInput.value,
-      image:"https://firebasestorage.googleapis.com/v0/b/pwagram-ad7b5.appspot.com/o/sf-boat.jpg?alt=media&token=0452a7d5-1433-4251-bd35-3f1a66a10649"
-    }),
-  }).then(function(res){
-    console.log("data sent ", res)
-    console.log("url ", url)
-    //updateUI();
-    fetch(url)
-  .then(function (res) {
-    console.log("masuk")
-    return res.json();
-  })
-  .then(function (data) {
-    var dataArray = [];
-    for (var key in data) {
-      dataArray.push(data[key]);
-    }
-    console.log("update")
-    updateUI(dataArray);
+  var id = new Date().toISOString();
+  var postData = new FormData();
+  postData.append("id", id);
+  postData.append("title", titleInput.value);
+  postData.append("location", locationInput.value);
+  postData.append("rawLocationLat", fetchedLocation.lat);
+  postData.append("rawLocationLng", fetchedLocation.lng);
+  postData.append("file", picture, id + ".png");
+  fetch("http://127.0.0.1:5001/pwagram-ad7b5/us-central1/storePostData", {
+    method: "POST",
+    body: postData,
+  }).then(function (res) {
+    console.log("Sent data", res);
+    updateUI();
   });
-  })
 }
 
 form.addEventListener("submit", function (event) {
@@ -173,6 +275,8 @@ form.addEventListener("submit", function (event) {
         id: new Date().toISOString(),
         title: titleInput.value,
         location: locationInput.value,
+        picture: picture,
+        rawLocation: fetchedLocation,
       };
       writeData("sync-posts", postData)
         .then(function () {
@@ -188,6 +292,6 @@ form.addEventListener("submit", function (event) {
         });
     });
   } else {
-      sendData();
+    sendData();
   }
 });
